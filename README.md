@@ -152,7 +152,7 @@ brew install ffmpeg python3 bash
 ```
 
 Hardware encoding needs the matching driver: NVIDIA for NVENC, `/dev/dri`
-render node for VAAPI, Intel media driver for QSV. None of it is required —
+render node for VAAPI, Intel media driver for QSV. None of it is required -
 `HWACCEL=none` uses libx264/libx265/SVT-AV1 and works everywhere.
 
 Check what your machine can actually do:

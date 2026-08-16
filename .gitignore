@@ -1,0 +1,42 @@
+# Local configuration — holds paths specific to your machine.
+# Commit .env.example instead.
+.env
+.env.*
+!.env.example
+
+# User inputs and generated trees — never commit these.
+/video/
+/video-work/
+/video-done/
+/hls/
+
+# Batch encoder state (created in whatever directory you run it from).
+/encode-working/
+/review-originals/
+/error-originals/
+/encode-logs/
+/notencoded/
+/encoded/
+
+# Stray logs (logs normally live under video-work/logs/)
+*.log
+
+# Media, wherever it lands. This is a video tool; stray samples and test
+# renders are easy to create and expensive to push.
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.webm
+*.m4v
+*.ts
+*.m4s
+*.m3u8
+*.vtt
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace

@@ -336,7 +336,5 @@ Other videos in the batch are unaffected.
 
 ## License
 
-No license file is included yet. Until one is added, default copyright applies:
-others may view the source but have no granted rights to use or redistribute
-it. Add a `LICENSE` (MIT and Apache-2.0 are common for tools like this) before
-relying on outside contributions.
+[MIT](LICENSE) © 2026 CurbSoftware Tech Innovations. Use it, change it, ship it
+commercially — just keep the copyright notice.

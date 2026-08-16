@@ -26,6 +26,87 @@ hls/talk/
 
 ---
 
+## Why this exists
+
+Putting video on a site normally means renting a video platform — Mux,
+Cloudflare Stream, api.video, Vimeo. You upload, they transcode, they host, and
+you pay per minute stored *and* per minute delivered, forever. It works, but
+your content lives on someone else's platform, costs scale with every view, and
+the URLs and player are theirs.
+
+This project does the transcoding half yourself. The output is a plain folder of
+static files — playlists and segments, nothing else. Push it to S3, Cloudflare
+R2, Backblaze B2, DigitalOcean Spaces, or your own nginx, and serve it like any
+other static asset. No API, no account, no per-minute billing. Storage and
+bandwidth you are already paying for.
+
+Every path inside a package is relative, so a package is location-independent:
+move it, rename it, or drop it behind a CDN and it still plays.
+
+### What HLS buys you over an MP4 file
+
+**Less bandwidth.** A progressive `.mp4` makes every viewer download the whole
+file at full size — a phone on cellular pulls the same 1080p bytes as a
+desktop. HLS ships the tier that matches the viewer's screen and connection, in
+~6-second segments. Someone who watches 30 seconds and leaves costs you 30
+seconds of transfer, not a 500 MB file. On a large library that is usually the
+single biggest hosting saving.
+
+**Multiple resolutions, chosen automatically.** One package holds every tier.
+The player measures throughput and switches mid-playback — no buffering spinner
+when the wifi dips, no manual quality selector.
+
+**Instant start and seeking.** Playback begins after one small segment instead
+of buffering a large file header, and seeking fetches only the segments needed.
+
+### Access control and signed URLs
+
+This is what matters for paid content like online courses, and it works
+naturally here — but the details are worth getting right, because one playback
+is many HTTP requests (a master playlist, a variant playlist, then every
+segment).
+
+- **Signed cookies — the right default.** CloudFront signed cookies, Cloudflare
+  signed cookies, or an equivalent authorize a whole *path prefix* in one go.
+  Issue the cookie when a student opens a lesson, and every playlist and segment
+  under that prefix is covered. Works with these packages unmodified.
+- **Per-URL presigning.** Plain S3 presigned URLs sign one object each, so you
+  must generate playlists per viewer with signatures already substituted in, or
+  put a small signing proxy in front. Doable, just more moving parts than people
+  expect.
+- **Edge tokens.** A Cloudflare Worker, nginx `secure_link`, or a tiny auth
+  service in front of the bucket, checking a short-lived token before serving.
+  Common for course platforms that already have a login.
+
+Because the pipeline emits relative URIs and a predictable directory per video,
+any of these slot in without touching the packages themselves.
+
+**One caveat, stated plainly:** signed URLs are access control, not DRM. They
+stop a link from being pasted into a group chat; they do not stop a determined
+user from downloading the segments. Real DRM (Widevine, PlayReady, FairPlay)
+needs encryption plus a license server — that is genuine, hard infrastructure,
+and it is where the hosted platforms actually earn their fee.
+
+### What you give up
+
+| | Hosted platform | This project |
+|---|---|---|
+| Transcoding | Managed | Yours (this repo) |
+| Storage & delivery | Theirs, metered | Any S3-compatible store or server |
+| Cost model | Per minute stored + delivered | Flat storage + bandwidth |
+| Per-viewer analytics | Built in | Wire up yourself |
+| Auto captions / transcription | Built in | Bring your own `.vtt` |
+| DRM & license server | Built in | Not included |
+| Live streaming | Built in | Not included (VOD only) |
+| Thumbnails / storyboards | Built in | Not included |
+| Global CDN | Built in | Put one in front of your bucket |
+
+If you need live streaming, DRM, or turnkey analytics, a hosted platform is the
+right call. If you have a library of finished videos and want to own the files
+and the bill, this is the missing piece.
+
+---
+
 ## Features
 
 - **Any codec, any accelerator.** H.264, HEVC and AV1 across NVENC, Intel QSV,
@@ -137,6 +218,45 @@ cd hls && python3 -m http.server 8000
 
 Safari plays HLS natively. Chrome and Firefox need a player such as
 [hls.js](https://github.com/video-dev/hls.js) or Video.js.
+
+### Hosting the output
+
+`hls/` is static files. Copy it to any object store or web server:
+
+```bash
+aws s3 sync hls/ s3://my-bucket/videos/          # S3
+rclone sync hls/ r2:my-bucket/videos/            # Cloudflare R2, B2, Spaces…
+rsync -av hls/ server:/var/www/videos/           # your own nginx
+```
+
+Two things trip people up, and both produce a stream that works locally and
+fails in production:
+
+**Content types.** Many buckets default to `application/octet-stream`, which
+some players refuse. Set them explicitly:
+
+| Extension | Content-Type |
+|---|---|
+| `.m3u8` | `application/vnd.apple.mpegurl` |
+| `.ts` | `video/mp2t` |
+| `.m4s` | `video/iso.segment` |
+| `.mp4` (fMP4 init) | `video/mp4` |
+| `.vtt` | `text/vtt` |
+
+```bash
+aws s3 cp hls/ s3://my-bucket/videos/ --recursive \
+  --exclude "*" --include "*.m3u8" \
+  --content-type application/vnd.apple.mpegurl --metadata-directive REPLACE
+```
+
+**CORS.** If the page and the files are on different origins, the bucket must
+send CORS headers — hls.js fetches playlists and segments over XHR, and Safari
+needs them cross-origin too. Allow `GET` and `HEAD` from your site's origin.
+
+Everything is immutable once published, so cache it hard
+(`Cache-Control: public, max-age=31536000, immutable`) and let a CDN absorb the
+traffic. Republishing a video replaces the whole directory, so use a new path
+or purge that prefix.
 
 ---
 

@@ -28,14 +28,14 @@ hls/talk/
 
 ## Why this exists
 
-Putting video on a site normally means renting a video platform — Mux,
+Putting video on a site normally means renting a video platform - Mux,
 Cloudflare Stream, api.video, Vimeo. You upload, they transcode, they host, and
 you pay per minute stored *and* per minute delivered, forever. It works, but
 your content lives on someone else's platform, costs scale with every view, and
 the URLs and player are theirs.
 
 This project does the transcoding half yourself. The output is a plain folder of
-static files — playlists and segments, nothing else. Push it to S3, Cloudflare
+static files - playlists and segments, nothing else. Push it to S3, Cloudflare
 R2, Backblaze B2, DigitalOcean Spaces, or your own nginx, and serve it like any
 other static asset. No API, no account, no per-minute billing. Storage and
 bandwidth you are already paying for.
@@ -46,14 +46,14 @@ move it, rename it, or drop it behind a CDN and it still plays.
 ### What HLS buys you over an MP4 file
 
 **Less bandwidth.** A progressive `.mp4` makes every viewer download the whole
-file at full size — a phone on cellular pulls the same 1080p bytes as a
+file at full size - a phone on cellular pulls the same 1080p bytes as a
 desktop. HLS ships the tier that matches the viewer's screen and connection, in
 ~6-second segments. Someone who watches 30 seconds and leaves costs you 30
 seconds of transfer, not a 500 MB file. On a large library that is usually the
 single biggest hosting saving.
 
 **Multiple resolutions, chosen automatically.** One package holds every tier.
-The player measures throughput and switches mid-playback — no buffering spinner
+The player measures throughput and switches mid-playback - no buffering spinner
 when the wifi dips, no manual quality selector.
 
 **Instant start and seeking.** Playback begins after one small segment instead
@@ -62,11 +62,11 @@ of buffering a large file header, and seeking fetches only the segments needed.
 ### Access control and signed URLs
 
 This is what matters for paid content like online courses, and it works
-naturally here — but the details are worth getting right, because one playback
+naturally here - but the details are worth getting right, because one playback
 is many HTTP requests (a master playlist, a variant playlist, then every
 segment).
 
-- **Signed cookies — the right default.** CloudFront signed cookies, Cloudflare
+- **Signed cookies - the right default.** CloudFront signed cookies, Cloudflare
   signed cookies, or an equivalent authorize a whole *path prefix* in one go.
   Issue the cookie when a student opens a lesson, and every playlist and segment
   under that prefix is covered. Works with these packages unmodified.
@@ -84,7 +84,7 @@ any of these slot in without touching the packages themselves.
 **One caveat, stated plainly:** signed URLs are access control, not DRM. They
 stop a link from being pasted into a group chat; they do not stop a determined
 user from downloading the segments. Real DRM (Widevine, PlayReady, FairPlay)
-needs encryption plus a license server — that is genuine, hard infrastructure,
+needs encryption plus a license server - that is genuine, hard infrastructure,
 and it is where the hosted platforms actually earn their fee.
 
 ### What you give up
@@ -250,7 +250,7 @@ aws s3 cp hls/ s3://my-bucket/videos/ --recursive \
 ```
 
 **CORS.** If the page and the files are on different origins, the bucket must
-send CORS headers — hls.js fetches playlists and segments over XHR, and Safari
+send CORS headers - hls.js fetches playlists and segments over XHR, and Safari
 needs them cross-origin too. Allow `GET` and `HEAD` from your site's origin.
 
 Everything is immutable once published, so cache it hard

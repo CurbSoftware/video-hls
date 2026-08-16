@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 # ============================================================
-# video-hls — one-command adaptive-bitrate HLS pipeline.
+# video-hls - one-command adaptive-bitrate HLS pipeline.
 #
 #   1. Drop video(s) into $INPUT_ROOT (video/).
 #   2. Run:  ./run.sh
@@ -33,7 +33,7 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
 fi
 
-# Directory layout — all relative to the repo by default, so the
+# Directory layout - all relative to the repo by default, so the
 # project works anywhere without editing paths.
 INPUT_ROOT="${INPUT_ROOT:-$SCRIPT_DIR/video}"
 WORK_ROOT="${WORK_ROOT:-$SCRIPT_DIR/video-work}"
@@ -104,7 +104,7 @@ DO_CHECK=false
 
 usage() {
   cat <<EOF
-video-hls — turn any video into adaptive-bitrate HLS.
+video-hls - turn any video into adaptive-bitrate HLS.
 
 Usage: ./run.sh [options]
 
@@ -296,7 +296,7 @@ run_check() {
   elif resolved="$(resolve_video_encoder "$VIDEO_CODEC" "$HWACCEL")"; then
     :
   else
-    resolved="NONE — no usable encoder for $VIDEO_CODEC"; rc=1
+    resolved="NONE - no usable encoder for $VIDEO_CODEC"; rc=1
   fi
   printf '  resolved video encoder: %s\n' "$resolved"
   printf '  resolved audio encoder: %s\n' "$(audio_encoder_for "$AUDIO_CODEC" 2>/dev/null || echo INVALID)"
@@ -346,7 +346,7 @@ bitrate_to_bps() {
 }
 
 # RFC 6381 CODECS attribute, derived from the real encoded file
-# rather than hardcoded — a wrong CODECS string makes players
+# rather than hardcoded - a wrong CODECS string makes players
 # refuse a stream they could actually play.
 video_codec_string() {
   local file="$1" height="$2"
@@ -566,7 +566,7 @@ echo "  output:   $HLS_ROOT"
 echo
 
 if $DRY_RUN; then
-  echo "Dry run — nothing will be encoded."
+  echo "Dry run - nothing will be encoded."
   echo
   for f in "${VIDEO_FILES[@]}"; do
     src_h="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$f" 2>/dev/null | head -n1 || true)"
@@ -600,7 +600,7 @@ process_video() {
 
   # Guard the rm -rf below: an empty key would target the roots.
   if [[ -z "$rel_no_ext" || "$rel_no_ext" == "." || "$rel_no_ext" == /* ]]; then
-    echo "ERROR: refusing to process '$SOURCE' — unsafe derived name '$rel_no_ext'" >&2
+    echo "ERROR: refusing to process '$SOURCE' - unsafe derived name '$rel_no_ext'" >&2
     return 1
   fi
 
@@ -694,7 +694,7 @@ process_video() {
   }
 
   # Background jobs cannot write to parent variables, so each job
-  # reports through its own status file. Cleaned up explicitly — an
+  # reports through its own status file. Cleaned up explicitly - an
   # EXIT trap would reference a local that is already out of scope
   # by the time the subshell exits.
   local status_dir encode_failed=false
@@ -801,7 +801,7 @@ process_video() {
     local label="$1" ladder_h="$2" ladder_w="$3" vbitrate="$4" maxrate="$5" abitrate="$7"
     [[ -s "$PARTIAL_HLS_DIR/$label/index.m3u8" ]] || continue
 
-    # Read the real dimensions back — scale=-2 rounds width to even,
+    # Read the real dimensions back - scale=-2 rounds width to even,
     # so the ladder's nominal width can be off by a pixel.
     variant_w="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$RENDITION_DIR/$label.mp4" 2>/dev/null | head -n1)"
     variant_h="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$RENDITION_DIR/$label.mp4" 2>/dev/null | head -n1)"
@@ -841,7 +841,7 @@ process_video() {
 }
 JSON
 
-  # Atomic publish — a web server never sees a half-written package.
+  # Atomic publish - a web server never sees a half-written package.
   mkdir -p "$(dirname -- "$FINAL_HLS_DIR")"
   rm -rf "$FINAL_HLS_DIR" && mv "$PARTIAL_HLS_DIR" "$FINAL_HLS_DIR"
   log "DONE" "[$idx/$total] HLS package: $FINAL_HLS_DIR/master.m3u8"

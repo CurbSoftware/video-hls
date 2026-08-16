@@ -1,10 +1,10 @@
-# Local configuration — holds paths specific to your machine.
+# Local configuration - holds paths specific to your machine.
 # Commit .env.example instead.
 .env
 .env.*
 !.env.example
 
-# User inputs and generated trees — never commit these.
+# User inputs and generated trees - never commit these.
 /video/
 /video-work/
 /video-done/

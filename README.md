@@ -3,13 +3,13 @@
 Turn any video into adaptive-bitrate HLS with one command.
 
 Drop files into `video/`, run `./run.sh`, and get streaming-ready packages in
-`hls/` — a master playlist, one variant per quality tier, and segments that all
+`hls/` - a master playlist, one variant per quality tier, and segments that all
 cut at the same timestamps so players can switch tiers without stuttering.
 
 ```bash
 git clone https://github.com/CurbSoftware/video-hls.git
 cd video-hls
-cp .env.example .env      # optional — defaults work as-is
+cp .env.example .env      # optional - defaults work as-is
 ./run.sh --check          # confirm ffmpeg and your encoders
 cp ~/Videos/talk.mp4 video/
 ./run.sh
@@ -37,7 +37,7 @@ hls/talk/
   the source are skipped automatically, so you don't ship a blurry "1080p".
 - **Correct `CODECS` metadata.** Profile and level are read back from each
   encoded rendition rather than hardcoded, and audio is only advertised when
-  the source actually has some — the two most common causes of a stream that
+  the source actually has some - the two most common causes of a stream that
   plays in VLC but not in a browser.
 - **Seamless tier switching.** Keyframe interval is locked to `fps × HLS_TIME`
   for every rendition, so segment boundaries line up exactly.
@@ -60,7 +60,7 @@ hls/talk/
 |---|---|
 | `ffmpeg` + `ffprobe` | 5.0 or newer. Must include the encoders you intend to use. |
 | `python3` | Computes the keyframe interval from fractional frame rates (e.g. 30000/1001). |
-| `bash` | 4.4+ (`mapfile -d`, `wait -n`). macOS ships bash 3.2 — `brew install bash`. |
+| `bash` | 4.4+ (`mapfile -d`, `wait -n`). macOS ships bash 3.2 - `brew install bash`. |
 
 ```bash
 # Debian / Ubuntu
@@ -123,7 +123,7 @@ hold your normal setup while you still override per run.
 3. Serve `hls/` over HTTP and point a player at `master.m3u8`.
 
 Successful sources move to `video-done/`, so `video/` is empty and ready for
-the next batch. Failures stay in `video/` — fix and re-run.
+the next batch. Failures stay in `video/` - fix and re-run.
 
 ### Playing the result
 
@@ -208,7 +208,7 @@ Shorter segments start faster and switch tiers more responsively but create
 many more files; 2–4s suits live-ish content, 6–10s suits long-form VOD.
 
 `auto` picks `mpegts` for H.264+AAC and `fmp4` otherwise. Forcing `mpegts` with
-HEVC, AV1 or Opus is rejected up front — MPEG-TS cannot carry them.
+HEVC, AV1 or Opus is rejected up front - MPEG-TS cannot carry them.
 
 ### Rendition ladder
 
@@ -218,7 +218,7 @@ HEVC, AV1 or Opus is rejected up front — MPEG-TS cannot carry them.
 | `MIN_RESOLUTION_HEIGHT` | `360` |
 | `LADDER` | see below |
 
-Built-in tiers — `label height width video_bitrate maxrate bufsize audio_bitrate`:
+Built-in tiers - `label height width video_bitrate maxrate bufsize audio_bitrate`:
 
 ```
 240p   240  426   400k   600k   900k   64k
@@ -272,7 +272,7 @@ becomes `DEFAULT=YES`. Sidecars are archived along with their video.
 
 `scripts/encode-batch.sh` is a separate tool for shrinking a library into plain
 playable files rather than HLS packages. It stages each source, encodes,
-validates with ffprobe, and moves the result into place — so `OUTPUT_DIR` only
+validates with ffprobe, and moves the result into place - so `OUTPUT_DIR` only
 ever contains complete, verified files.
 
 ```bash
@@ -295,21 +295,21 @@ deletes them only after the encode validates. Needs `flock`, `realpath` and
 
 ## Troubleshooting
 
-**`No usable h264 encoder found`** — run `./run.sh --check`. If every hardware
+**`No usable h264 encoder found`** - run `./run.sh --check`. If every hardware
 option says "built, not usable here", the driver is missing or unreachable; use
 `HWACCEL=none`.
 
-**Stream plays in VLC but not a browser** — usually HEVC or AV1, which Chrome
+**Stream plays in VLC but not a browser** - usually HEVC or AV1, which Chrome
 and Firefox often refuse. Re-encode with `VIDEO_CODEC=h264`.
 
-**Player stutters when switching quality** — segment boundaries are misaligned.
+**Player stutters when switching quality** - segment boundaries are misaligned.
 This happens if renditions were encoded at different `HLS_TIME` values across
 runs while `SKIP_EXISTING=true`. Delete `video-work/encoded/<name>/` and re-run.
 
-**A video failed** — it stays in `video/`. The reason is in
+**A video failed** - it stays in `video/`. The reason is in
 `video-work/logs/encode_<name>_<timestamp>.log`.
 
-**Start completely fresh** — `rm -rf video-work/` deletes only scratch data;
+**Start completely fresh** - `rm -rf video-work/` deletes only scratch data;
 published packages in `hls/` are untouched.
 
 ---
@@ -318,16 +318,16 @@ published packages in `hls/` are untouched.
 
 `run.sh` is a single self-contained script. Per video:
 
-1. **Probe** — ffprobe reads dimensions, frame rate and whether audio exists.
-2. **Plan** — `GOP = round(fps × HLS_TIME)` fixes the keyframe interval; ladder
+1. **Probe** - ffprobe reads dimensions, frame rate and whether audio exists.
+2. **Plan** - `GOP = round(fps × HLS_TIME)` fixes the keyframe interval; ladder
    tiers above the source height are dropped.
-3. **Encode** — one MP4 per tier, written to a partial path and moved into
+3. **Encode** - one MP4 per tier, written to a partial path and moved into
    place only once ffprobe confirms it is readable.
-4. **Package** — each rendition is segmented with `-c copy`, so packaging never
+4. **Package** - each rendition is segmented with `-c copy`, so packaging never
    re-encodes and can only cut on the keyframes placed in step 3.
-5. **Publish** — the master playlist is assembled with `CODECS` read back from
+5. **Publish** - the master playlist is assembled with `CODECS` read back from
    the real files, then the whole package is moved into `hls/` in one step.
-6. **Archive** — the source, and any subtitle sidecars, move to `video-done/`.
+6. **Archive** - the source, and any subtitle sidecars, move to `video-done/`.
 
 Any failure aborts that video before publishing, leaving the source in place.
 Other videos in the batch are unaffected.
@@ -337,4 +337,4 @@ Other videos in the batch are unaffected.
 ## License
 
 [MIT](LICENSE) © 2026 CurbSoftware Tech Innovations. Use it, change it, ship it
-commercially — just keep the copyright notice.
+commercially - just keep the copyright notice.

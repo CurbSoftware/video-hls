@@ -6,12 +6,12 @@ by running the relevant script.
 
 ## Layout
 
-- `run.sh` — the HLS pipeline. One self-contained script; this is the project.
-- `.env.example` — documented config template. Users copy it to `.env`.
-- `scripts/encode-batch.sh` — separate batch re-encoder producing plain files
+- `run.sh` - the HLS pipeline. One self-contained script; this is the project.
+- `.env.example` - documented config template. Users copy it to `.env`.
+- `scripts/encode-batch.sh` - separate batch re-encoder producing plain files
   rather than HLS. Shares no code with `run.sh`.
-- `README.md` — user-facing docs and the full settings reference.
-- `video/` `hls/` `video-work/` `video-done/` — input, output, scratch, archive.
+- `README.md` - user-facing docs and the full settings reference.
+- `video/` `hls/` `video-work/` `video-done/` - input, output, scratch, archive.
   All gitignored and generated at runtime.
 
 ## Running
@@ -57,7 +57,7 @@ writes to a partial path and moves into place only on success.
   switches to `#EXT-X-VERSION:7`. Forcing `mpegts` with those codecs is
   rejected at startup.
 
-## Invariants — do not break these
+## Invariants - do not break these
 
 - **GOP alignment.** `GOP = round(fps × HLS_TIME)` is computed once per source
   and applied to every rendition. Packaging is `-c copy`, so ffmpeg can only
@@ -72,7 +72,7 @@ writes to a partial path and moves into place only on success.
   `rm -rf FINAL && mv PARTIAL FINAL`. Never write into `HLS_ROOT` directly.
 - **Failures never publish.** Any encode or packaging failure aborts that video
   before the move, and the source stays in `INPUT_ROOT` for retry. Packaging
-  errors are checked — do not reintroduce `>/dev/null 2>&1` there.
+  errors are checked - do not reintroduce `>/dev/null 2>&1` there.
 - **Status files, not variables.** Background jobs report through
   `.status` files in a `mktemp -d`. The batch wrapper pre-writes `fail` and
   upgrades to `success`, because `fail()` exits the subshell outright and an
@@ -85,7 +85,7 @@ writes to a partial path and moves into place only on success.
 - `python3` is a hard runtime dependency: bash cannot evaluate `30000/1001 × 6`
   for the GOP size.
 - `set -Eeuo pipefail` is on. `$SOME_BOOL && cmd` at top level aborts the script
-  when the variable is false — use `if [[ "$VAR" == "true" ]]`.
+  when the variable is false - use `if [[ "$VAR" == "true" ]]`.
 - An EXIT trap referencing a function-local variable fires after that local is
   out of scope and dies under `set -u`. Clean up explicitly instead.
 - `INPUT_ROOT` is canonicalised before the prefix-strip that derives output
@@ -110,7 +110,7 @@ grep -o '#EXTINF:[0-9.]*' /tmp/vt/out/a/*/index.m3u8
 ```
 
 Always test at least one software path (`HWACCEL=none`) alongside any hardware
-path — most contributors and CI machines have no GPU.
+path - most contributors and CI machines have no GPU.
 
 ## Publishing
 

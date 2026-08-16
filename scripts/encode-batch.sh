@@ -2,12 +2,12 @@
 set -Eeuo pipefail
 
 # ============================================================
-# Recursive batch re-encoder — any codec, any accelerator.
+# Recursive batch re-encoder - any codec, any accelerator.
 #
 # Shrinks a library of videos in place-ish: walks INPUT_DIR, re-encodes
 # each file, and leaves OUTPUT_DIR holding only finished files. Unlike
 # ./run.sh (which produces streaming HLS packages), this produces plain
-# playable files — use it for archiving or transcoding a collection.
+# playable files - use it for archiving or transcoding a collection.
 #
 # Important output rule:
 # - OUTPUT_DIR contains ONLY complete, ffprobe-validated files.

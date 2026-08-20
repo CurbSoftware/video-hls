@@ -1,0 +1,15 @@
+[2026-08-15 20:55:30] [INFO] [1/1] Processing: PressedMail Demo.mp4 (1920x1080, audio=false, gop=180)
+[2026-08-15 20:55:30] [START] Encoding 360p with h264_nvenc
+[2026-08-15 20:55:30] [START] Encoding 480p with h264_nvenc
+[2026-08-15 20:55:30] [START] Encoding 720p with h264_nvenc
+[2026-08-15 20:55:34] [DONE] 360p -> /home/you/projects/video-hls/video-work/encoded/PressedMail Demo/renditions/360p.mp4
+[2026-08-15 20:55:34] [START] Encoding 1080p with h264_nvenc
+[2026-08-15 20:55:35] [DONE] 480p -> /home/you/projects/video-hls/video-work/encoded/PressedMail Demo/renditions/480p.mp4
+[2026-08-15 20:55:36] [DONE] 720p -> /home/you/projects/video-hls/video-work/encoded/PressedMail Demo/renditions/720p.mp4
+[2026-08-15 20:55:42] [DONE] 1080p -> /home/you/projects/video-hls/video-work/encoded/PressedMail Demo/renditions/1080p.mp4
+[2026-08-15 20:55:42] [DONE] Packaged 480p
+[2026-08-15 20:55:42] [DONE] Packaged 360p
+[2026-08-15 20:55:42] [DONE] Packaged 720p
+[2026-08-15 20:55:42] [DONE] Packaged 1080p
+[2026-08-15 20:55:43] [DONE] [1/1] HLS package: /home/you/projects/video-hls/hls/PressedMail Demo/master.m3u8
+[2026-08-15 20:55:43] [DONE] [1/1] Source archived: /home/you/projects/video-hls/video-done/PressedMail Demo.mp4

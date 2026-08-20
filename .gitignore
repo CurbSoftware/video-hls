@@ -40,3 +40,19 @@ Thumbs.db
 .idea/
 .vscode/
 *.code-workspace
+
+# Control Room desktop app (apps/desktop) — build artifacts
+/apps/desktop/.venv/
+/apps/desktop/dist/
+/apps/desktop/build/
+/apps/desktop/.pytest_cache/
+/apps/desktop/**/__pycache__/
+/screenshots/
+# PyInstaller regenerates this and bakes absolute build paths into it
+/apps/desktop/*.spec
+
+# AppImage packaging scratch
+/packaging/cache/
+/packaging/*.AppDir/
+/packaging/*.AppImage
+/packaging/smoke/

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control Room — video-hls · RTE-88</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/shell.css">
+  <link rel="stylesheet" href="css/views.css">
+</head>
+<body>
+  <div id="app">
+
+    <aside id="sidebar">
+      <div id="wordmark-block">
+        <a href="#/dashboard" id="wordmark" data-tip="Return to systems overview">Control Room</a>
+        <p class="micro" id="wordmark-sub">VIDEO-HLS · RTE-88</p>
+      </div>
+      <nav id="nav" aria-label="Exits"></nav>
+      <div id="sidebar-foot">
+        <p class="micro coords" aria-hidden="true">44.06°N 121.31°W · MP 0.1</p>
+      </div>
+    </aside>
+
+    <div id="main-col">
+      <main id="view" class="view" tabindex="-1"></main>
+      <footer id="statusbar">
+        <span id="sb-systems"></span>
+        <span id="sb-run" hidden></span>
+        <span class="sb-sep" aria-hidden="true"></span>
+        <span class="micro" id="sb-engine">ENGINE —</span>
+        <span class="micro" id="sb-disk" data-tip="Free space on the volume hosting HLS_ROOT"></span>
+        <span class="sb-spacer"></span>
+        <span class="micro" id="sb-clock">--:--:--</span>
+      </footer>
+    </div>
+
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+/* ============================================================================
+   CONTROL ROOM — shell
+   App frame: sidebar (signage gantry), view column, status bar (road deck).
+   ========================================================================== */
+
+#app {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  height: 100vh;
+  width: 100vw;
+}
+
+/* -- sidebar ---------------------------------------------------------------- */
+
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-deep);
+  border-right: 1px solid var(--hairline);
+  min-height: 0;
+}
+
+#wordmark-block {
+  padding: var(--s-6) var(--s-5) var(--s-5);
+  border-bottom: 1px solid var(--hairline);
+}
+
+#wordmark {
+  display: inline-block;
+  font-family: var(--font-wordmark);
+  font-weight: 700;
+  font-size: 1.28rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  line-height: 1.15;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+#wordmark:hover { color: var(--amber); }
+
+#wordmark-sub {
+  margin-top: 0.45rem;
+  color: var(--ink-4);
+}
+
+/* nav: one exit per view. Mile-marker stack — mono exit number over label. */
+#nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-3) 0;
+}
+
+#nav a {
+  position: relative;
+  display: block;
+  padding: 0.7rem var(--s-5) 0.7rem calc(var(--s-5) + 3px);
+  border-left: 3px solid transparent;
+  transition: background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
+}
+
+#nav a .exit {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink-4);
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+
+#nav a .label {
+  display: block;
+  margin-top: 0.2rem;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+
+#nav a:hover {
+  background: var(--bg-raise);
+}
+#nav a:hover .label { color: var(--ink); }
+#nav a:hover .exit { color: var(--ink-3); }
+
+#nav a.active {
+  background: var(--bg-raise);
+  border-left-color: var(--amber);
+}
+#nav a.active .label { color: var(--ink); }
+#nav a.active .exit { color: var(--amber); }
+
+#nav a .key-hint {
+  position: absolute;
+  top: 50%;
+  right: var(--s-4);
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+#nav a:hover .key-hint,
+#nav a:focus-visible .key-hint { opacity: 1; }
+
+#sidebar-foot {
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  border-top: 1px solid var(--hairline);
+}
+
+#sidebar-foot .coords { color: var(--ink-4); }
+
+/* -- view column ------------------------------------------------------------- */
+
+#main-col {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+#view {
+  overflow-y: auto;
+  min-height: 0;
+  padding: clamp(1.5rem, 1rem + 2vw, 3rem) var(--gutter) var(--s-16);
+}
+
+/* view reveal: opacity + 4px rise */
+#view.view-in { animation: view-in var(--dur-slow) var(--ease-out) both; }
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* -- status bar ---------------------------------------------------------------- */
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 44px;
+  padding: 0 var(--gutter);
+  background: var(--bg-deep);
+  border-top: 1px solid var(--hairline);
+  overflow: hidden;
+}
+
+#statusbar .sb-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--hairline);
+  flex: none;
+}
+
+#statusbar .sb-spacer { flex: 1; }
+
+#sb-engine, #sb-disk, #sb-clock { color: var(--ink-3); white-space: nowrap; }
+/* narrow windows: the long mono items truncate rather than push the
+   document past the viewport (the busy chip unhiding was the trigger) */
+#sb-engine, #sb-disk { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#sb-clock { color: var(--ink-2); }
+
+/* busy pulse — the amber heartbeat of a route in progress */
+@keyframes sb-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+#sb-run .chip .dot { animation: sb-pulse 1.15s var(--ease-standard) infinite; }
+#sb-run .chip { border-color: var(--amber-a40); color: var(--ink); }
+
+/* -- narrow windows: fold the gantry ------------------------------------------------ */
+
+@media (max-width: 900px) {
+  #app { grid-template-columns: 72px minmax(0, 1fr); }
+  #wordmark { font-size: 0.95rem; letter-spacing: 0.02em; }
+  #wordmark-block { padding: var(--s-4) var(--s-2); }
+  #sidebar-foot { display: none; }
+  #nav a { padding-left: calc(var(--s-2) + 3px); padding-right: var(--s-2); }
+  #nav a .label { font-size: 0.7rem; letter-spacing: 0; }
+  #nav a .key-hint { display: none; }
+}

@@ -1,0 +1,53 @@
+video-hls system check
+======================
+
+Required commands:
+  ffmpeg     OK   /home/you/.local/bin/ffmpeg
+  ffprobe    OK   /home/you/.local/bin/ffprobe
+  python3    OK   /usr/bin/python3
+
+  ffmpeg: ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+  bash:   5.2.21(1)-release
+
+Hardware:
+  NVIDIA    not detected (no nvidia-smi)
+  VAAPI     /dev/dri/renderD128 present
+
+Video encoders (compiled in / actually usable):
+  h264
+    h264_nvenc             not built
+    h264_qsv               not built
+    h264_vaapi             not built
+    h264_videotoolbox      not built
+    libx264                USABLE
+  hevc
+    hevc_nvenc             not built
+    hevc_qsv               not built
+    hevc_vaapi             not built
+    hevc_videotoolbox      not built
+    libx265                USABLE
+  av1
+    av1_nvenc              not built
+    av1_qsv                not built
+    av1_vaapi              not built
+    av1_videotoolbox       not built
+    libsvtav1              not built
+    libaom-av1             USABLE
+
+Audio encoders:
+    aac                    available
+    libopus                available
+
+Active configuration:
+  VIDEO_CODEC=h264  AUDIO_CODEC=aac  HWACCEL=auto  QUALITY=28
+  resolved video encoder: libx264
+  resolved audio encoder: aac
+  segment type:           mpegts
+
+Paths:
+  input   /home/you/projects/video-hls/video
+  output  /home/you/projects/video-hls/hls
+  work    /home/you/projects/video-hls/video-work
+  archive /home/you/projects/video-hls/video-done
+
+Result: ready.

@@ -1,0 +1,12 @@
+video-hls: 1 video(s) to process
+  encoder:  libx264 + aac  (segments: mpegts)
+  ladder:   360p 480p 720p 1080p 
+  output:   /home/you/projects/video-hls/hls
+
+Dry run - nothing will be encoded.
+
+Route 66 Demo.mp4  (source height: 720)
+    360p   encode -> 360p/index.m3u8
+    480p   encode -> 480p/index.m3u8
+    720p   encode -> 720p/index.m3u8
+    1080p  skip (would upscale from 720p)

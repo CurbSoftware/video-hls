@@ -1,0 +1,2 @@
+No videos found in /tmp/vt/empty
+Drop files there and re-run, or set INPUT_ROOT to point elsewhere.

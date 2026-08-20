@@ -1,0 +1,12 @@
+{
+  "source": "PressedMail Demo.mp4",
+  "source_width": 1920,
+  "source_height": 1080,
+  "video_codec": "h264",
+  "video_encoder": "h264_nvenc",
+  "audio_codec": null,
+  "segment_type": "mpegts",
+  "segment_duration": 6,
+  "gop_size": 180,
+  "subtitles": 0
+}

@@ -1,0 +1,137 @@
+/* ============================================================================
+   CONTROL ROOM — design tokens
+   Extracted 1:1 from curbsoftware.com's built stylesheets (2026-08).
+   Fonts: the site's exact self-hosted woff2 files, SIL OFL (texts in assets/fonts/).
+   Every color/size/motion value in the app comes from here. Do not hand-pick
+   hexes in views — add a token instead.
+   ========================================================================== */
+
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 500; src: url("../assets/fonts/SpaceGrotesk-500.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 600; src: url("../assets/fonts/SpaceGrotesk-600.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 700; src: url("../assets/fonts/SpaceGrotesk-700.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; src: url("../assets/fonts/PlexSans-400.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; src: url("../assets/fonts/PlexSans-500.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; src: url("../assets/fonts/PlexSans-600.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 700; src: url("../assets/fonts/PlexSans-700.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; src: url("../assets/fonts/PlexMono-400.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; src: url("../assets/fonts/PlexMono-500.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Comfortaa"; font-style: normal; font-weight: 700; src: url("../assets/fonts/Comfortaa-700.woff2") format("woff2"); font-display: swap; }
+
+:root {
+  /* -- surfaces ---------------------------------------------------------- */
+  --bg: #100d09;            /* app base */
+  --bg-deep: #0c0a07;       /* recessed wells, sidebar */
+  --bg-panel: #1a1409;      /* cards / panels */
+  --bg-raise: #161009;      /* raised rows, hover */
+  --bg-glass: #1a14098c;    /* overlays, drawer scrims */
+
+  /* -- ink ---------------------------------------------------------------- */
+  --ink: #f3efe8;
+  --ink-2: #f3efe8b8;
+  --ink-3: #f3efe899;
+  --ink-4: #f3efe880;
+  --ink-a06: #f3efe80f;
+  --ink-a10: #f3efe81a;
+  --ink-a16: #f3efe829;
+  --muted: #5a5450;
+
+  /* -- signal ------------------------------------------------------------- */
+  --amber: #e8a33d;
+  --amber-2: #f0b558;
+  --amber-3: #f7cd87;
+  --amber-ink: #150800;
+  --amber-a04: #e8a33d0a;
+  --amber-a08: #e8a33d14;
+  --amber-a14: #e8a33d24;
+  --amber-a24: #e8a33d3d;
+  --amber-a40: #e8a33d66;
+  --copper: #b8792a;
+  --copper-2: #8a5a1f;
+  --success: #43a84c;
+  --danger: #ff6467;
+
+  /* -- lines --------------------------------------------------------------- */
+  --hairline: var(--amber-a14);
+  --hairline-strong: var(--amber-a40);
+  --hairline-soft: var(--ink-a06);
+  --grid-line: #e8a33d0f;
+  --grid-size: 45px;
+
+  /* -- glow ---------------------------------------------------------------- */
+  --glow-amber: 0 0 0 1px var(--amber-a24), 0 0 40px -8px #e8a33d59;
+  --glow-amber-strong: 0 0 0 1px var(--amber-a40), 0 0 64px -8px #e8a33d8c;
+
+  /* -- shadows --------------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px #00000059;
+  --shadow-md: 0 8px 24px -8px #0000008c;
+  --shadow-lg: 0 24px 64px -16px #000000b3;
+
+  /* -- type --------------------------------------------------------------- */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-wordmark: "Comfortaa", ui-rounded, sans-serif;
+
+  --text-sm: 0.8125rem;
+  --text-base: clamp(0.9375rem, 0.9rem + 0.2vw, 1.0625rem);
+  --text-md: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  --text-lg: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --text-xl: clamp(1.5rem, 1.35rem + 1vw, 2.125rem);
+  --text-2xl: clamp(2rem, 1.5rem + 2.2vw, 3.25rem);
+  --text-3xl: clamp(2.5rem, 1.6rem + 4vw, 4.75rem);
+  --text-4xl: clamp(3rem, 1.5rem + 6.5vw, 7rem);
+
+  --leading-tight: 0.92;
+  --leading-snug: 1.1;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+  --measure: 62ch;
+
+  /* -- space (4px base) ---------------------------------------------------- */
+  --s-1: 0.25rem;  --s-2: 0.5rem;   --s-3: 0.75rem;  --s-4: 1rem;
+  --s-5: 1.25rem;  --s-6: 1.5rem;   --s-8: 2rem;     --s-10: 2.5rem;
+  --s-12: 3rem;    --s-16: 4rem;    --s-20: 5rem;    --s-24: 6rem;
+  --s-32: 8rem;
+  --gutter: clamp(1.25rem, 0.75rem + 3vw, 3rem);
+
+  /* -- shape --------------------------------------------------------------- */
+  --radius: 0;              /* sharp, utilitarian — corners come from hairlines */
+  --radius-pill: 999px;
+  --container: 1280px;
+  --container-wide: 1440px;
+  --nav-h: 72px;
+
+  /* -- motion ---------------------------------------------------------------- */
+  --dur-fast: 0.14s;
+  --dur-base: 0.24s;
+  --dur-slow: 0.48s;
+  --dur-reveal: 0.8s;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* -- shared primitives ------------------------------------------------------
+   Micro-label: the site's signature mono eyebrow (RTE-88, EXIT 01, R-01).  */
+.micro {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Dashed lane divider — a roadway marking. */
+.lane-divider {
+  height: 1px;
+  background: repeating-linear-gradient(90deg,
+    transparent 0 14px, var(--amber-a40) 14px 26px);
+}
+
+/* Blueprint grid wash for hero/well areas. */
+.grid-wash {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}

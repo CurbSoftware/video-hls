@@ -1,0 +1,22 @@
+[2026-08-18 10:00:01] [INFO] Run directory:          /home/you/lab
+[2026-08-18 10:00:01] [INFO] Input:                  /home/you/lab/raw
+[2026-08-18 10:00:01] [INFO] Output:                 /home/you/lab/encoded
+[2026-08-18 10:00:01] [INFO] Video encoder: libaom-av1   Audio: libopus
+[2026-08-18 10:00:01] [INFO] Found 2 video file(s).
+[2026-08-18 10:00:01] [STAGE] [1/2] Moving source into encoding work dir: Trip Clip.mov
+[2026-08-18 10:00:02] [START] [1/2] Encoding from staged file: Trip Clip.mov
+frame=    8 fps=0.0 q=35.0 size=       0kB time=00:00:00.32 bitrate=  0.9kbits/s speed=0.64x    frame=   64 fps= 31 q=35.0 size=    1024kB time=00:00:02.56 bitrate=3276.8kbits/s speed=1.24x    frame=  150 fps= 30 q=35.0 size=    2048kB time=00:00:06.00 bitrate=2796.2kbits/s speed=1.19x    
+[2026-08-18 10:00:10] [STAGE] [2/2] Moving source into encoding work dir: Old Show.mp4
+[2026-08-18 10:00:10] [START] [2/2] Encoding from staged file: Old Show.mp4
+[2026-08-18 10:00:12] [WARN] [2/2] First encode attempt failed. Retrying once: Old Show.mp4
+[2026-08-18 10:00:20] [ERROR] [2/2] Encode failed: Old Show.mp4
+[2026-08-18 10:00:20] [ERROR] [2/2] Failed staged original moved to error directory: Old Show.mp4
+[2026-08-18 10:00:21] [DONE] [1/2] Trip Clip.mov -> /home/you/lab/encoded/Trip Clip.mkv ; original moved to review
+[2026-08-18 10:00:22] [INFO] ============================================================
+[2026-08-18 10:00:22] [INFO] Encoding complete.
+[2026-08-18 10:00:22] [INFO] Total files:            2
+[2026-08-18 10:00:22] [INFO] Successful files:       1
+[2026-08-18 10:00:22] [INFO] Failed files:           1
+[2026-08-18 10:00:22] [INFO] Encoded outputs:        /home/you/lab/encoded
+[2026-08-18 10:00:22] [INFO] Master log:             /home/you/lab/encode-logs/encode-batch-20260818_100001.log
+[2026-08-18 10:00:22] [INFO] ============================================================

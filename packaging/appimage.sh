@@ -23,11 +23,14 @@ APPDIR="$PKG_DIR/$APP_NAME.AppDir"
 CACHE="$PKG_DIR/cache"
 SMOKE="$PKG_DIR/smoke"
 SHARE="share/$APP_NAME"
+APP_VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$DESKTOP_APP/pyproject.toml" | head -n1)"
+APPIMAGE_PATH="$PKG_DIR/CurbStream-${APP_VERSION}-x86_64.AppImage"
 
 log() { printf '\n==> %s\n' "$*"; }
 die() { printf 'FATAL: %s\n' "$*" >&2; exit 1; }
 
 [[ -x "$VENV_PY" ]] || die "no venv python at $VENV_PY — run: cd apps/desktop && uv sync --extra dev"
+[[ -n "$APP_VERSION" ]] || die "no version in $DESKTOP_APP/pyproject.toml"
 [[ -f "$REPO/run.sh" ]] || die "run.sh not found at $REPO"
 
 # --- icon: SVG -> PNG via the venv's QtSvg (committed; re-render on change) --
@@ -225,17 +228,32 @@ system-Qt builds; PyInstaller already bundles all of Qt here)" >&2
   grep -q QTWEBENGINE_DISABLE_SANDBOX "$APPDIR/AppRun" \
     || die "linuxdeploy replaced our AppRun — check the built image"
 
-  local produced appimage="$PKG_DIR/$APP_NAME-x86_64.AppImage"
-  produced="$(find "$PKG_DIR" -maxdepth 1 -name '*-x86_64.AppImage' -print -quit)"
+  local produced="" candidate mtime newest=0
+  local -a candidates=()
+  shopt -s nullglob
+  candidates+=("$PKG_DIR"/*-x86_64.AppImage)
+  [[ -d "$HOME/Documents" ]] && candidates+=("$HOME/Documents"/*-x86_64.AppImage)
+  shopt -u nullglob
+  for candidate in "${candidates[@]}"; do
+    case "$(basename "$candidate")" in
+      linuxdeploy*|linuxdeploy-plugin*) continue ;;
+    esac
+    mtime="$(stat -c %Y "$candidate")"
+    if (( mtime > newest )); then
+      newest=$mtime
+      produced=$candidate
+    fi
+  done
   [[ -n "$produced" ]] || die "linuxdeploy reported success but produced no AppImage"
-  [[ "$produced" == "$appimage" ]] || mv "$produced" "$appimage"
-  printf 'AppImage: %s  (%s)\n' "$appimage" "$(du -h "$appimage" | cut -f1)"
+  [[ "$produced" == "$APPIMAGE_PATH" ]] || mv "$produced" "$APPIMAGE_PATH"
+  chmod +x "$APPIMAGE_PATH"
+  printf 'AppImage: %s  (%s)\n' "$APPIMAGE_PATH" "$(du -h "$APPIMAGE_PATH" | cut -f1)"
 }
 
 # --- post-build smoke -------------------------------------------------------------
 
 smoke() {
-  local appimage="$PKG_DIR/$APP_NAME-x86_64.AppImage"
+  local appimage="$APPIMAGE_PATH"
   [[ -f "$appimage" ]] || { echo "SMOKE: skipped (no AppImage)" >&2; return 0; }
   log "smoke: --list-views"
   "$appimage" --appimage-extract-and-run --list-views >/dev/null \

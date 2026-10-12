@@ -5,7 +5,7 @@ resolution and app settings persistence."""
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -310,6 +310,64 @@ class TestResolveRoots:
     def test_empty_value_falls_back_to_default(self, tmp_path):
         roots = resolve_roots(tmp_path, {"INPUT_ROOT": ""})
         assert roots["input"] == tmp_path / "video"
+
+    def test_checkout_keeps_work_beside_the_engine(self, tmp_path):
+        roots = resolve_roots(tmp_path, {})
+        assert roots["work"] == tmp_path / "video-work"
+        assert roots["work"].name == "video-work"
+        assert not config.is_packaged_path(roots["work"])
+
+    def test_user_media_root_is_the_expanded_home_videos_tree(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config.Path, "home", staticmethod(lambda: tmp_path))
+        root = config.user_media_root()
+        assert root == tmp_path / "Videos" / "curbstream"
+        assert root.is_absolute()
+        assert "~" not in root.as_posix()
+        assert ".mount_" not in root.as_posix()
+        assert "appimage_extracted_" not in root.as_posix()
+        assert "share/videohls-controlroom" not in root.as_posix()
+        posix = config.user_media_root(PurePosixPath)
+        assert posix == PurePosixPath(tmp_path.as_posix()) / "Videos" / "curbstream"
+
+    def test_packaged_work_root_is_the_home_tree_itself(self, tmp_path, monkeypatch):
+        """Work is ~/Videos/curbstream, not a video-work folder inside the mount."""
+        monkeypatch.setattr(config.Path, "home", staticmethod(lambda: tmp_path))
+        engine = "/tmp/.mount_CurbStream/usr/share/videohls-controlroom/engine"
+        roots = resolve_roots(engine, {})
+        base = tmp_path / "Videos" / "curbstream"
+        assert roots["work"] == base
+        assert roots["work"].name == "curbstream"
+        assert roots["encoded"] == base / "encoded"
+        assert roots["state"] == base / "state"
+        assert roots["logs"] == base / "logs"
+        assert "video-work" not in roots["work"].parts
+
+    def test_extracted_appimage_tree_moves_off_the_mount(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config.Path, "home", staticmethod(lambda: tmp_path))
+        engine = "/tmp/appimage_extracted_42/squashfs-root/usr/share/videohls-controlroom/engine"
+        roots = resolve_roots(engine, {})
+        assert roots["work"] == tmp_path / "Videos" / "curbstream"
+        assert all("appimage_extracted_" not in str(path) for path in roots.values())
+        assert all("/.mount_" not in str(path) for path in roots.values())
+
+    def test_packaged_explicit_work_root_outside_the_mount_stays(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config.Path, "home", staticmethod(lambda: tmp_path))
+        engine = "/tmp/.mount_CurbStream/usr/share/videohls-controlroom/engine"
+        roots = resolve_roots(engine, {"WORK_ROOT": "/srv/jobs"})
+        assert roots["work"] == Path("/srv/jobs")
+        assert roots["encoded"] == Path("/srv/jobs/encoded")
+        assert roots["hls"] == tmp_path / "Videos" / "curbstream" / "hls"
+
+
+@pytest.mark.parametrize("path, packaged", [
+    ("/tmp/.mount_CurbStreamXYZ/usr/bin", True),
+    ("/opt/CurbStream/share/videohls-controlroom/engine", True),
+    ("/tmp/appimage_extracted_99/squashfs-root", True),
+    ("/srv/video-hls", False),
+    ("/srv/Videos/curbstream", False),
+])
+def test_is_packaged_path(path, packaged):
+    assert config.is_packaged_path(path) is packaged
 
 
 class TestAppSettings:

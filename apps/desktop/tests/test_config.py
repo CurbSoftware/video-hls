@@ -248,6 +248,21 @@ class TestResolveRoots:
         assert roots["input"] == Path("/srv/videos")
         assert roots["logs"] == Path("/var/log/vhls")
 
+    def test_posix_resolution_against_wsl_engine_root(self):
+        # Windows: PurePosixPath + the /mnt/... engine root, so Linux
+        # absolutes are absolute (a WindowsPath would mis-anchor them)
+        # and slashes never become backslashes.
+        from pathlib import PurePosixPath
+        roots = resolve_roots("/mnt/c/app/engine", {
+            "INPUT_ROOT": "/home/u/video",
+            "HLS_ROOT": "out",
+        }, pathcls=PurePosixPath)
+        assert roots["input"] == PurePosixPath("/home/u/video")
+        assert roots["hls"] == PurePosixPath("/mnt/c/app/engine/out")
+        assert all("\\" not in str(v) for v in roots.values())
+        assert roots["logs"] == PurePosixPath(
+            "/mnt/c/app/engine/video-work/logs")
+
     def test_work_root_override_flows_into_derived_roots(self, tmp_path):
         roots = resolve_roots(tmp_path, {"WORK_ROOT": "mywork"})
         assert roots["work"] == tmp_path / "mywork"
@@ -260,6 +275,37 @@ class TestResolveRoots:
         roots = resolve_roots(tmp_path, {"ENCODED_ROOT": "$WORK_ROOT/encoded",
                                          "WORK_ROOT": "w"})
         assert roots["encoded"] == tmp_path / "w" / "encoded"
+
+    def test_packaged_defaults_use_the_home_videos_tree(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config.Path, "home", staticmethod(lambda: tmp_path))
+        engine = "/tmp/.mount_CurbStoFkLIN/usr/bin/share/videohls-controlroom/engine"
+        roots = resolve_roots(engine, {})
+        base = tmp_path / "Videos" / "curbstream"
+        assert roots["work"] == base
+        assert roots["hls"] == base / "hls"
+        assert roots["processed"] == base / "video-done"
+        assert roots["input"] == base / "video"
+        assert roots["encoded"] == base / "encoded"
+        assert roots["state"] == base / "state"
+        assert roots["logs"] == base / "logs"
+        assert all("/.mount_" not in str(path) for path in roots.values())
+        assert all("share/videohls-controlroom" not in str(path) for path in roots.values())
+
+    def test_packaged_engine_keeps_an_outside_absolute_path(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config.Path, "home", staticmethod(lambda: tmp_path))
+        engine = "/tmp/.mount_CurbStoFkLIN/usr/bin/share/videohls-controlroom/engine"
+        roots = resolve_roots(engine, {"HLS_ROOT": "/home/ubuntu/Videos/maammy"})
+        assert roots["hls"] == Path("/home/ubuntu/Videos/maammy")
+        assert roots["work"] == tmp_path / "Videos" / "curbstream"
+
+    def test_installed_share_tree_is_packaged_too(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config.Path, "home", staticmethod(lambda: tmp_path))
+        engine = "/opt/CurbStream/share/videohls-controlroom/engine"
+        roots = resolve_roots(engine, {})
+        assert roots["work"] == tmp_path / "Videos" / "curbstream"
+        batch = config.relocate_batch_path(
+            engine, "ENCODING_WORK_DIR", f"{engine}/encode-working")
+        assert batch == tmp_path / "Videos" / "curbstream" / "batch" / "encode-working"
 
     def test_empty_value_falls_back_to_default(self, tmp_path):
         roots = resolve_roots(tmp_path, {"INPUT_ROOT": ""})

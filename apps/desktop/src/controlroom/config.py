@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # Bitrate values as the engines accept them: bare bits or a k/m suffix
 # (run.sh bitrate_to_bps understands [kK] and [mM]).
@@ -394,7 +395,107 @@ def validate(specs: dict[str, FieldSpec], values: dict[str, str]) -> list[str]:
     return errors
 
 
-def resolve_roots(engine_root: Path, values: dict[str, str]) -> dict[str, Path]:
+def user_media_root(pathcls=Path):
+    """Default writable tree for a packaged app: the real home directory.
+
+    Expanded here. A literal tilde would stay unexpanded inside the
+    read-only AppImage mount.
+    """
+    home = Path.home() / "Videos" / "curbstream"
+    if pathcls is PurePosixPath:
+        return PurePosixPath(home.as_posix())
+    return pathcls(home)
+
+
+def is_packaged_path(path) -> bool:
+    """True when a path lives in the AppImage mount or the installed tree."""
+    text = str(path).replace("\\", "/")
+    return (
+        "/.mount_" in text
+        or "/share/videohls-controlroom" in text
+        or "/tmp/appimage_extracted_" in text
+    )
+
+
+def _is_inside(path, parent, pathcls) -> bool:
+    try:
+        pathcls(path).relative_to(pathcls(parent))
+    except ValueError:
+        return False
+    return True
+
+
+# Subdirectories under ~/Videos/curbstream for defaults that would
+# otherwise land inside the package. Work itself is the directory.
+_PACKAGED_LEAF = {
+    "input": "video",
+    "hls": "hls",
+    "processed": "video-done",
+    "encoded": "encoded",
+    "state": "state",
+    "logs": "logs",
+}
+
+# encode-batch.sh defaults are relative to the process cwd. Inside an
+# AppImage that cwd is the mount, so the scratch dirs move too.
+_BATCH_LEAF = {
+    "INPUT_DIR": "batch/notencoded",
+    "OUTPUT_DIR": "batch/encoded",
+    "ENCODING_WORK_DIR": "batch/encode-working",
+    "ORIGINALS_REVIEW_DIR": "batch/review-originals",
+    "ERROR_DIR": "batch/error-originals",
+    "LOG_DIR": "batch/encode-logs",
+}
+
+
+def relocate_packaged_roots(engine_root, roots: dict, pathcls=Path) -> dict:
+    """Move package-internal output and scratch defaults under the home tree.
+
+    A checkout keeps $SCRIPT_DIR/video-work. An AppImage's engine root is
+    read-only, so those same defaults cannot be created there.
+    """
+    if not is_packaged_path(engine_root):
+        return roots
+    base = user_media_root(pathcls)
+    engine = pathcls(engine_root)
+    out = dict(roots)
+    work = pathcls(roots["work"])
+    work_inside = is_packaged_path(work) or _is_inside(work, engine, pathcls)
+    if work_inside:
+        out["work"] = base
+        for key in ("encoded", "state", "logs"):
+            current = pathcls(roots[key])
+            if not (is_packaged_path(current) or _is_inside(current, engine, pathcls)
+                    or _is_inside(current, work, pathcls)):
+                continue
+            try:
+                rel = current.relative_to(work)
+            except ValueError:
+                rel = pathcls(_PACKAGED_LEAF[key])
+            if str(rel) in ("", "."):
+                rel = pathcls(_PACKAGED_LEAF[key])
+            out[key] = base / rel
+    for key in ("input", "hls", "processed"):
+        current = pathcls(roots[key])
+        if is_packaged_path(current) or _is_inside(current, engine, pathcls):
+            out[key] = base / _PACKAGED_LEAF[key]
+    return out
+
+
+def relocate_batch_path(engine_root, var: str, path, pathcls=Path):
+    """Point a packaged batch directory at ~/Videos/curbstream/batch/."""
+    if not is_packaged_path(engine_root):
+        return path
+    if not (is_packaged_path(path) or _is_inside(path, engine_root, pathcls)):
+        return path
+    leaf = _BATCH_LEAF.get(var)
+    if not leaf:
+        return path
+    return user_media_root(pathcls) / leaf
+
+
+def resolve_roots(engine_root: Path, values: dict[str, str],
+                  pathcls=Path) -> dict[str, Path]:
     """Resolve run.sh's directory settings the way the script does.
 
     Absolute paths pass through; relative paths anchor to the engine root
@@ -402,24 +503,36 @@ def resolve_roots(engine_root: Path, values: dict[str, str]) -> dict[str, Path]:
     symbolic $SCRIPT_DIR / $WORK_ROOT anchors used by the spec defaults are
     expanded here. ENCODED_ROOT/STATE_ROOT/LOG_ROOT derive from WORK_ROOT
     when not overridden.
-    """
-    engine_root = Path(engine_root)
 
-    def resolve(value: str, work: Path | None = None) -> Path:
+    When the engine root is the AppImage mount or the installed
+    share/videohls-controlroom tree, defaults that would be created inside
+    that tree are moved under ~/Videos/curbstream instead. An absolute path
+    the user set outside the package is left alone.
+
+    pathcls lets Windows resolve with PurePosixPath against the WSL-form
+    engine root, so `/home/u/video` is absolute for run.sh instead of
+    being mis-anchored by Windows path rules.
+    """
+    engine_root = pathcls(engine_root)
+    # normalization must match the flavour: os.path.normpath on Windows
+    # would rewrite POSIX paths to backslashes.
+    norm = posixpath.normpath if pathcls is PurePosixPath else os.path.normpath
+
+    def resolve(value: str, work=None) -> Path:
         if value.startswith("$SCRIPT_DIR/"):
             path = engine_root / value[len("$SCRIPT_DIR/"):]
         elif work is not None and value.startswith("$WORK_ROOT/"):
             path = work / value[len("$WORK_ROOT/"):]
         else:
-            p = Path(value)
+            p = pathcls(value)
             path = p if p.is_absolute() else engine_root / p
-        return Path(os.path.normpath(path))
+        return pathcls(norm(str(path)))
 
     def eff(name: str, fallback: str) -> str:
         return values.get(name) or fallback
 
     work = resolve(eff("WORK_ROOT", "$SCRIPT_DIR/video-work"))
-    return {
+    roots = {
         "input": resolve(eff("INPUT_ROOT", "$SCRIPT_DIR/video")),
         "hls": resolve(eff("HLS_ROOT", "$SCRIPT_DIR/hls")),
         "work": work,
@@ -428,6 +541,7 @@ def resolve_roots(engine_root: Path, values: dict[str, str]) -> dict[str, Path]:
         "state": resolve(eff("STATE_ROOT", "$WORK_ROOT/state"), work),
         "logs": resolve(eff("LOG_ROOT", "$WORK_ROOT/logs"), work),
     }
+    return relocate_packaged_roots(engine_root, roots, pathcls)
 
 
 def _app_settings_path() -> Path:

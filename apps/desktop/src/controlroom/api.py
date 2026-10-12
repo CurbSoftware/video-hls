@@ -37,13 +37,13 @@ import time
 import traceback
 from dataclasses import asdict
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from PySide6.QtCore import QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QWidget
 
-from . import config, engine_paths, envfile, ffprobe, library, parsers, runner, tail
+from . import config, convert, engine_paths, envfile, ffprobe, library, parsers, runner, s3, tail, wsl
 
 VIDEO_SUFFIXES = {
     ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".mpg", ".mpeg",
@@ -68,13 +68,15 @@ def _dumps(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, default=str)
 
 
-def _batch_dir(engine_root: Path | None, value: str) -> Path:
-    """expand $RUN_DIR / relative batch paths (encode-batch anchors to cwd)."""
+def _batch_dir(engine_root: Path | None, value: str, pathcls=Path) -> Path:
+    """expand $RUN_DIR / relative batch paths (encode-batch anchors to cwd).
+    pathcls=PurePosixPath resolves against the WSL-form engine root on
+    Windows, so Linux absolutes stay absolute."""
     v = value.replace("$RUN_DIR", ".")
-    p = Path(v).expanduser()
+    p = pathcls(v).expanduser()
     if p.is_absolute():
         return p
-    return (engine_root or Path.cwd()) / p
+    return (engine_root or pathcls.cwd()) / p
 
 
 class Api(QObject):
@@ -98,6 +100,8 @@ class Api(QObject):
         self._lines: list[str] = []
         self._tail: tail.FileTail | None = None
         self._verify_busy = False
+        self._upload_busy = False
+        self._staged_job: str | None = None
         self._disk_cache = None
         self._reload_engine()
 
@@ -118,6 +122,8 @@ class Api(QObject):
         except Exception:
             traceback.print_exc()
             self._app_settings = {}
+        # app.json may pin a non-default distro (no UI; documented)
+        wsl.configure(self._app_settings.get("wsl_distro"))
         try:
             self._engine, self._engine_note = engine_paths.locate_engine(
                 self._app_settings)
@@ -144,6 +150,8 @@ class Api(QObject):
 
     def _tools(self) -> dict:
         if self._engine is None:
+            if wsl.IS_WINDOWS:
+                return wsl.tools_ok()
             return {n: shutil.which(n) for n in ("ffmpeg", "ffprobe", "python3")}
         ffmpeg_dir = self._app_settings.get("ffmpeg_dir") or None
         return self._runner().tools_ok(ffmpeg_dir)
@@ -166,10 +174,25 @@ class Api(QObject):
         return vals
 
     def _roots(self, runsh_values: dict | None = None) -> dict[str, Path]:
+        """Engine-canonical roots: what run.sh itself will see. On Windows
+        that means WSL paths (PurePosixPath against the /mnt/... engine
+        root); on POSIX, plain host paths."""
         if self._engine is None:
             return {}
         vals = runsh_values or self._effective("runsh")
+        if wsl.IS_WINDOWS:
+            return config.resolve_roots(wsl.to_wsl(str(self._engine.root)),
+                                        vals, PurePosixPath)
         return config.resolve_roots(self._engine.root, vals)
+
+    def _host_roots(self) -> dict[str, Path]:
+        """Roots as the GUI's own filesystem sees them — identical to
+        _roots() on POSIX; on Windows /mnt/c/... becomes C:\\... and other
+        WSL paths become \\\\wsl.localhost UNC paths."""
+        if not wsl.IS_WINDOWS:
+            return self._roots()
+        d = wsl.distro()
+        return {k: Path(wsl.to_host(str(v), d)) for k, v in self._roots().items()}
 
     # ------------------------------------------------------ state / signals
 
@@ -190,7 +213,7 @@ class Api(QObject):
     # -------------------------------------------------------------- disk
 
     def _disk(self) -> dict:
-        roots = self._roots()
+        roots = self._host_roots()
         key = tuple(sorted(map(str, roots.items())))
         if self._disk_cache is not None and self._disk_cache[0] == key:
             return self._disk_cache[1]
@@ -216,6 +239,9 @@ class Api(QObject):
             "engine": engine,
             "tools": self._tools(),
             "roots": {k: str(v) for k, v in self._roots().items()},
+            # additive (BRIDGE.md): null on Linux; on Windows describes the
+            # WSL backend so the dashboard can guide setup
+            "platform": wsl.status(),
             "disk": self._disk(),
             "busy": self._busy(),
             "app_settings": {
@@ -225,6 +251,8 @@ class Api(QObject):
             },
             "env_path": str(env_path) if env_path else None,
             "env_writable": os.access(env_path.parent, os.W_OK) if env_path else False,
+            # additive: built-in rendition ladder for the conversion wizard
+            "builtin_ladder": convert.builtin_ladder(),
         }
         return _dumps(out)
 
@@ -242,6 +270,10 @@ class Api(QObject):
         if self._busy():
             self.reportReady.emit(CHANNEL_FOR_MODE[mode], _dumps({"error": "busy"}))
             return
+        gate = self._wsl_gate()
+        if gate is not None:
+            self.reportReady.emit(CHANNEL_FOR_MODE[mode], _dumps({"error": gate}))
+            return
         try:
             overrides = self._parse_overrides(overrides_json)
             self._launch_engine("runsh", mode, overrides)
@@ -249,6 +281,17 @@ class Api(QObject):
             traceback.print_exc()
             self.reportReady.emit(CHANNEL_FOR_MODE[mode],
                                   _dumps({"error": str(exc)}))
+
+    def _wsl_gate(self) -> str | None:
+        """On Windows, the actionable error string when WSL is unusable
+        (missing, no distro, WSL1); None when launching may proceed."""
+        if not wsl.IS_WINDOWS:
+            return None
+        st = wsl.status() or {}
+        if not st.get("available"):
+            hint = st.get("hint") or "wsl --install -d Ubuntu"
+            return f"WSL not ready: {st.get('error') or 'no distribution'} (fix: {hint})"
+        return None
 
     @Slot(str, result=str)
     def launchRun(self, overrides_json: str) -> str:
@@ -261,7 +304,14 @@ class Api(QObject):
     def _launch_slot(self, kind: str, overrides_json: str) -> str:
         if self._busy():
             return _dumps({"ok": False, "error": "busy"})
+        gate = self._wsl_gate()
+        if gate is not None:
+            return _dumps({"ok": False, "error": gate})
         if not self._tools().get("ffmpeg"):
+            if wsl.IS_WINDOWS:
+                return _dumps({"ok": False, "error": (
+                    "ffmpeg missing inside WSL — run: sudo apt install ffmpeg "
+                    "python3 (in the distro)")})
             return _dumps({"ok": False, "error": "ffmpeg missing"})
         try:
             overrides = self._parse_overrides(overrides_json, kind)
@@ -285,21 +335,28 @@ class Api(QObject):
             return overrides
         if kind == "runsh":
             eff = self._effective("runsh", overrides)
-            roots = config.resolve_roots(self._engine.root, eff)
+            roots = self._roots(eff)  # engine-canonical (WSL on Windows)
             var2root = {"INPUT_ROOT": "input", "HLS_ROOT": "hls",
                         "WORK_ROOT": "work", "PROCESSED_ROOT": "processed",
                         "ENCODED_ROOT": "encoded", "STATE_ROOT": "state",
                         "LOG_ROOT": "logs"}
+            # Always hand the engine absolute roots. The wizard sets
+            # INPUT_ROOT and HLS_ROOT; WORK_ROOT and the scratch dirs are
+            # not in that payload, and run.sh would otherwise create them
+            # under the read-only AppImage mount.
             for var, name in var2root.items():
-                if var in overrides:
-                    overrides[var] = str(roots[name])
+                overrides[var] = str(roots[name])
         else:
             # stored batch settings backstop whatever the form just sent
             overrides = self._effective("batch", overrides)
+            base, pathcls = self._engine.root, Path
+            if wsl.IS_WINDOWS:
+                base, pathcls = wsl.to_wsl(str(self._engine.root)), PurePosixPath
             for var in ("INPUT_DIR", "OUTPUT_DIR", "ENCODING_WORK_DIR",
                         "ORIGINALS_REVIEW_DIR", "ERROR_DIR", "LOG_DIR"):
-                overrides[var] = str(_batch_dir(self._engine.root,
-                                                overrides.get(var, "")))
+                path = _batch_dir(base, overrides.get(var, ""), pathcls)
+                path = config.relocate_batch_path(base, var, path, pathcls)
+                overrides[var] = str(path)
         return overrides
 
     def _launch_engine(self, kind: str, mode: str, overrides: dict) -> None:
@@ -318,8 +375,14 @@ class Api(QObject):
         def on_done(rc: int) -> None:
             self._finish_run(channel, rc)
 
+        cwd = None
+        if self._engine is not None and config.is_packaged_path(self._engine.root):
+            cwd = config.user_media_root()
+            writing = kind == "batch" or (mode or "run") == "run"
+            if writing:
+                Path(cwd).mkdir(parents=True, exist_ok=True)
         r.launch(kind, mode if kind == "runsh" else None,
-                 overrides=overrides, on_line=on_line, on_done=on_done)
+                 overrides=overrides, cwd=cwd, on_line=on_line, on_done=on_done)
         self._emit_state()
 
     def _finish_run(self, channel: str, rc: int) -> None:
@@ -354,8 +417,20 @@ class Api(QObject):
         self.reportReady.emit(
             channel if channel in ("check", "dryrun") else f"{channel}.summary",
             _dumps(report))
+        if channel == "run":
+            self._drop_staged_job()
         self._disk_cache = None
         self._emit_state()
+
+    def _drop_staged_job(self) -> None:
+        staged = self._staged_job
+        self._staged_job = None
+        if not staged:
+            return
+        try:
+            self._clear_job(staged)
+        except Exception:
+            traceback.print_exc()
 
     @Slot(result=str)
     def cancelRun(self) -> str:
@@ -376,7 +451,7 @@ class Api(QObject):
         return self._guard(self._list_inputs, fallback="[]")
 
     def _list_inputs(self) -> str:
-        root = self._roots().get("input")
+        root = self._host_roots().get("input")
         out = []
         if root is None or not root.is_dir():
             return _dumps(out)
@@ -411,7 +486,7 @@ class Api(QObject):
         return self._guard(self._library_list, fallback="[]")
 
     def _library_list(self) -> str:
-        root = self._roots().get("hls")
+        root = self._host_roots().get("hls")
         out = []
         for pkg in library.scan_library(root or ""):
             out.append({
@@ -430,7 +505,7 @@ class Api(QObject):
                            fallback='{"error": "internal error"}')
 
     def _package_detail(self, name: str) -> str:
-        root = self._roots().get("hls")
+        root = self._host_roots().get("hls")
         for pkg in library.scan_library(root or ""):
             if pkg.name == name:
                 return _dumps({
@@ -449,7 +524,7 @@ class Api(QObject):
         return self._guard(self._archive_list, fallback="[]")
 
     def _archive_list(self) -> str:
-        root = self._roots().get("processed")
+        root = self._host_roots().get("processed")
         out = []
         for p in library.archive_list(root or ""):
             try:
@@ -478,7 +553,7 @@ class Api(QObject):
     def _verify_worker(self, name: str) -> None:
         try:
             master = None
-            root = self._roots().get("hls")
+            root = self._host_roots().get("hls")
             for pkg in library.scan_library(root or ""):
                 if pkg.name == name:
                     master = pkg.master
@@ -505,7 +580,7 @@ class Api(QObject):
     def _logs_list(self) -> str:
         out = []
         sources = [
-            ("runsh", self._roots().get("logs")),
+            ("runsh", self._host_roots().get("logs")),
             ("batch", self._batch_log_dir()),
         ]
         for engine, d in sources:
@@ -531,6 +606,11 @@ class Api(QObject):
     def _batch_log_dir(self) -> Path | None:
         if self._engine is None:
             return None
+        if wsl.IS_WINDOWS:
+            wsl_dir = _batch_dir(wsl.to_wsl(str(self._engine.root)),
+                                 self._effective("batch")["LOG_DIR"],
+                                 PurePosixPath)
+            return Path(wsl.to_host(str(wsl_dir), wsl.distro()))
         return _batch_dir(self._engine.root,
                           self._effective("batch")["LOG_DIR"])
 
@@ -710,11 +790,230 @@ class Api(QObject):
             start = current or (str(self._engine.root) if self._engine
                                 else str(Path.home()))
             parent = self.parent() if isinstance(self.parent(), QWidget) else None
-            return QFileDialog.getExistingDirectory(parent, "Choose directory",
-                                                    start) or ""
+            if wsl.IS_WINDOWS:
+                # the native dialog needs a Windows path to start in
+                start = wsl.to_host(start, wsl.distro())
+            picked = QFileDialog.getExistingDirectory(parent, "Choose directory",
+                                                      start) or ""
+            # the dialog returns a Windows path (or a \\wsl.localhost browse);
+            # settings are engine-canonical, i.e. WSL paths on Windows
+            return wsl.to_wsl(picked) if wsl.IS_WINDOWS else picked
         except Exception:
             traceback.print_exc()
             return ""
+
+    @Slot(str, result=str)
+    def pickFile(self, current: str) -> str:
+        try:
+            start = current or (str(self._engine.root) if self._engine
+                                else str(Path.home()))
+            parent = self.parent() if isinstance(self.parent(), QWidget) else None
+            if wsl.IS_WINDOWS:
+                start = wsl.to_host(start, wsl.distro())
+            picked, _filt = QFileDialog.getOpenFileName(
+                parent, "Choose a video", start,
+                "Videos (*.mp4 *.mov *.mkv *.avi *.webm *.m4v *.mpg *.mpeg "
+                "*.ts *.m2ts *.flv *.wmv);;All files (*)")
+            picked = picked or ""
+            return wsl.to_wsl(picked) if wsl.IS_WINDOWS else picked
+        except Exception:
+            traceback.print_exc()
+            return ""
+
+    def _as_host(self, path: str) -> Path:
+        """A path the GUI can stat. On Windows, engine paths are WSL paths."""
+        if wsl.IS_WINDOWS:
+            return Path(wsl.to_host(wsl.to_wsl(path), wsl.distro()))
+        return Path(path).expanduser()
+
+    def _as_engine(self, path: Path) -> str:
+        if wsl.IS_WINDOWS:
+            return wsl.to_wsl(str(path))
+        return str(path)
+
+    def _ext_pattern(self) -> str:
+        try:
+            return self._effective("runsh").get("VIDEO_EXTENSIONS_REGEX", "")
+        except Exception:
+            return ""
+
+    def _stage_link(self, dest: Path, src: Path) -> None:
+        """Symlink dest -> src. On Windows the engine is inside WSL, so the
+        link has to be a Linux symlink the distro's find can see."""
+        if not wsl.IS_WINDOWS:
+            dest.symlink_to(src.resolve())
+            return
+        proc = subprocess.run(
+            wsl.wrap_argv(
+                ["ln", "-s", "--", wsl.to_wsl(str(src.resolve())),
+                 wsl.to_wsl(str(dest))],
+                wsl.distro()),
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0:
+            raise OSError((proc.stderr or proc.stdout or "ln failed").strip())
+
+    @Slot(str, result=str)
+    def probeSources(self, path: str) -> str:
+        return self._guard(self._probe_sources, path,
+                           fallback='{"root": "", "items": [], "error": "internal error"}')
+
+    def _probe_sources(self, path: str) -> str:
+        if not path:
+            return _dumps({"root": "", "items": [], "error": "Choose a file or a folder."})
+        host = self._as_host(path)
+        report = convert.probe_path(
+            host, ffprobe_exe=self._tools().get("ffprobe") or "ffprobe",
+            ext_pattern=self._ext_pattern())
+        return _dumps(report)
+
+    @Slot(str, result=str)
+    def stageJob(self, items_json: str) -> str:
+        return self._guard(self._stage_job, items_json,
+                           fallback='{"ok": false, "error": "internal error", "input_root": null}')
+
+    def _stage_job(self, items_json: str) -> str:
+        data = json.loads(items_json or "{}")
+        items = data.get("items") if isinstance(data, dict) else data
+        if isinstance(data, dict) and "output_names" in data and not items:
+            items = data["output_names"]
+        work = self._host_roots().get("work")
+        if work is None:
+            return _dumps({"ok": False, "error": "No engine is set.", "input_root": None})
+        # Sources arrive as host paths from probeSources. Stage on the host
+        # view of WORK_ROOT, then hand the engine a path it can read.
+        host_items = []
+        for item in items or []:
+            if not isinstance(item, dict):
+                host_items.append(item)
+                continue
+            src = item.get("src") or ""
+            host_items.append({**item, "src": str(self._as_host(src))})
+        result = convert.stage_job(Path(work), host_items, link=self._stage_link)
+        if result.get("ok") and result.get("input_root"):
+            result["input_root"] = self._as_engine(Path(result["input_root"]))
+            self._staged_job = result["input_root"]
+        return _dumps(result)
+
+    @Slot(str, result=str)
+    def clearJob(self, input_root: str) -> str:
+        return self._guard(self._clear_job, input_root,
+                           fallback='{"ok": false, "error": "internal error"}')
+
+    def _clear_job(self, input_root: str) -> str:
+        work = self._host_roots().get("work")
+        if work is None or not input_root:
+            return _dumps({"ok": False, "error": "No job to clear."})
+        return _dumps(convert.clear_job(Path(work), str(self._as_host(input_root))))
+
+    @Slot(str, result=str)
+    def outputClash(self, spec_json: str) -> str:
+        return self._guard(self._output_clash, spec_json,
+                           fallback='{"existing": []}')
+
+    def _output_clash(self, spec_json: str) -> str:
+        data = json.loads(spec_json or "{}")
+        directory = str(data.get("dir") or "")
+        names = [str(n) for n in (data.get("names") or [])]
+        if not directory:
+            return _dumps({"existing": []})
+        return _dumps({
+            "existing": convert.existing_packages(self._as_host(directory), names),
+        })
+
+    @Slot(result=str)
+    def s3Get(self) -> str:
+        return self._guard(lambda: _dumps(s3.public_profile()),
+                           fallback='{"error": "internal error"}')
+
+    @Slot(str, result=str)
+    def s3Save(self, values_json: str) -> str:
+        return self._guard(self._s3_save, values_json,
+                           fallback='{"ok": false, "error": "internal error"}')
+
+    def _s3_save(self, values_json: str) -> str:
+        incoming = json.loads(values_json or "{}")
+        if not isinstance(incoming, dict):
+            return _dumps({"ok": False, "error": "Settings must be an object."})
+        # Never echo the secret back, even if the caller just sent one.
+        profile = s3.save_public_update(incoming)
+        return _dumps({"ok": True, "error": None, "profile": profile})
+
+    @Slot(result=str)
+    def s3Check(self) -> str:
+        return self._guard(self._s3_check,
+                           fallback='{"ok": false, "error": "internal error"}')
+
+    def _s3_check(self) -> str:
+        raw = s3.load_raw()
+        try:
+            s3.head_bucket(raw)
+        except s3.S3Error as exc:
+            return _dumps({"ok": False, "error": str(exc)})
+        return _dumps({"ok": True, "error": None})
+
+    @Slot(result=str)
+    def s3ApplyCors(self) -> str:
+        return self._guard(self._s3_apply_cors,
+                           fallback='{"ok": false, "error": "internal error"}')
+
+    def _s3_apply_cors(self) -> str:
+        try:
+            s3.put_bucket_cors(s3.load_raw())
+        except s3.S3Error as exc:
+            return _dumps({"ok": False, "error": str(exc)})
+        return _dumps({"ok": True, "error": None})
+
+    @Slot(str)
+    def uploadPackages(self, spec_json: str) -> None:
+        self._guard(self._upload_packages, spec_json)
+
+    def _upload_packages(self, spec_json: str) -> None:
+        if self._busy() or self._upload_busy:
+            self.reportReady.emit("upload", _dumps({
+                "ok": False, "error": "busy", "final": True,
+                "uploaded": 0, "failed": 0}))
+            return
+        self._upload_busy = True
+        threading.Thread(target=self._upload_worker, args=(spec_json,),
+                         daemon=True, name="s3-upload").start()
+
+    def _upload_worker(self, spec_json: str) -> None:
+        uploaded = 0
+        failed = 0
+        try:
+            data = json.loads(spec_json or "{}")
+            packages = data.get("packages") or []
+            profile = s3.load_raw()
+            if not profile.get("secret_access_key") or not profile.get("access_key_id"):
+                raise s3.S3Error("Enter an access key and a secret.")
+            for pkg in packages:
+                name = str(pkg.get("name") or "")
+                folder = self._as_host(str(pkg.get("path") or ""))
+                def progress(done, total, package=name):
+                    self.reportReady.emit("upload", _dumps({
+                        "name": package, "done": done, "total": total,
+                        "ok": True, "error": None, "url": None, "final": False,
+                    }))
+                result = s3.upload_package(profile, name, folder, on_progress=progress)
+                result["final"] = False
+                if result.get("ok"):
+                    uploaded += 1
+                else:
+                    failed += 1
+                self.reportReady.emit("upload", _dumps(result))
+            self.reportReady.emit("upload", _dumps({
+                "ok": failed == 0, "error": None, "final": True,
+                "uploaded": uploaded, "failed": failed,
+            }))
+        except Exception as exc:
+            traceback.print_exc()
+            self.reportReady.emit("upload", _dumps({
+                "ok": False, "error": str(exc), "final": True,
+                "uploaded": uploaded, "failed": failed + 1,
+            }))
+        finally:
+            self._upload_busy = False
 
     @Slot(str)
     def openPath(self, path: str) -> None:
